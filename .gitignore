@@ -205,3 +205,32 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ============================================
+# Board OCR Project Specific
+# ============================================
+
+# Uploaded user files
+uploads/
+outputs/
+test_images/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Application logs
+*.log
+logs/
+
+# ML models and large files (если будешь добавлять)
+models/
+*.pkl
+*.h5
+*.pt
+*.pth
+
+# Temporary files
+temp/
+tmp/
