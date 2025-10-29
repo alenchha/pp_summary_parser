@@ -1,4 +1,4 @@
-import { ChakraProvider, Flex, Box } from '@chakra-ui/react';
+import { ChakraProvider, Flex, Text, Box } from '@chakra-ui/react';
 import FileUpload from './features/fileUpload/FileUpload';
 import { colors } from './shared/ui/theme/colors';
 
@@ -6,7 +6,7 @@ export default function App() {
     return (
         <ChakraProvider>
             <Box position="relative" w="100%" minH="100vh">
-                {/* <Text
+                <Text
                     position="absolute"
                     top="10px"
                     left="30px"
@@ -15,7 +15,7 @@ export default function App() {
                     color={colors.text}
                 >
                     SmartNotes
-                </Text> */}
+                </Text>
 
                 <Flex
                     minH="100vh"
