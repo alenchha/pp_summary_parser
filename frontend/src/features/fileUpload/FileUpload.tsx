@@ -1,34 +1,101 @@
 import { useState } from 'react';
-import { Box, Button, Text, Icon, Flex } from '@chakra-ui/react';
+import { Box, Button, Text, Icon, Flex, VStack, HStack, CloseButton, useToast } from '@chakra-ui/react';
 import { FiUploadCloud } from 'react-icons/fi';
 import { colors } from '../../shared/ui/theme/colors';
+import { uploadImages, generatePdf, downloadPdf } from '../../api/api';
 
 export default function FileUpload() {
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [hovered, setHovered] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const toast = useToast();
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
-    }
+        if (e.target.files) {
+            const newFiles = Array.from(e.target.files);
+            const combined = [...files, ...newFiles].slice(0, 10);
+            setFiles(combined);
+        }
+    };
 
     const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsDragging(false);
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
-    }
+        const dropped = Array.from(e.dataTransfer.files).slice(0, 10);
+        setFiles(dropped);
+    };
 
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsDragging(true);
-    }
+    };
 
     const handleDragLeave = () => setIsDragging(false);
 
-    const handleUpload = () => {
-        if (!file) return alert('Пожалуйста, выбери файл!');
-        alert(`Файл "${file.name}" готов к загрузке`);
-    }
+    const handleRemoveFile = (index: number) => {
+        setFiles(files.filter((_, i) => i !== index));
+    };
+
+    const handleUpload = async () => {
+        if (files.length === 0) {
+            toast({
+                title: 'Файлы не выбраны',
+                description: 'Пожалуйста, выберите хотя бы один файл.',
+                status: 'warning',
+                duration: 2000,
+                isClosable: true,
+                position: 'bottom-left',
+            });
+            return;
+        }
+        if (files.length > 10) {
+            toast({
+                title: 'Слишком много файлов',
+                description: 'Максимум 10 файлов за раз.',
+                status: 'warning',
+                duration: 2000,
+                isClosable: true,
+                position: 'bottom-left',
+            });
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            const uploadRes = await uploadImages(files);
+            const payload = {
+                request_id: uploadRes.request_id,
+                images_data: uploadRes.processed_images,
+                title: "Мои заметки с доски"
+            };
+            const pdfRes = await generatePdf(payload);
+            await await downloadPdf(pdfRes.pdf_url.split('/').pop()!);
+            toast({
+                title: 'Файл успешно сгенерирован',
+                description: 'PDF готов и скачан.',
+                status: 'success',
+                duration: 2000,
+                isClosable: true,
+                position: 'bottom-left',
+            });
+        } catch (err: unknown) {
+            console.error(err);
+            const description =
+                err instanceof Error ? err.message : 'Не удалось обработать файлы';
+
+            toast({
+                title: 'Ошибка при обработке',
+                description,
+                status: 'error',
+                duration: 2000,
+                isClosable: true,
+                position: 'bottom-left',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
         <Box
@@ -63,23 +130,14 @@ export default function FileUpload() {
                         bottom="10px"
                         left="20px"
                         transition="all 0.4s ease"
-                        transform={hovered ? 'translateY(-130px)' : 'translateY(0)'}
+                        transform={hovered ? 'translateY(-160px)' : 'translateY(0)'}
                     >
-                        <Text
-                            size="md"
-                            fontWeight="bold"
-                            fontSize="3xl"
-                            transition="0.4s"
-                        >
+                        <Text fontWeight="bold" fontSize="3xl" transition="0.4s">
                             SmartNotes
                         </Text>
                     </Box>
 
-                    <Box
-                        color="white"
-                        textAlign="left"
-                        position="absolute"
-                    >
+                    <Box color="white" textAlign="left" position="absolute">
                         <Text
                             fontSize="18"
                             opacity={hovered ? 1 : 0}
@@ -88,8 +146,8 @@ export default function FileUpload() {
                             maxW="700px"
                         >
                             SmartNotes - это инструмент для преобразования конспекта из рукописного формата в электронный.<br />
-                            Добавьте изображение в соседнее поле и нажмите кнопку "Загрузить файл".<br />
-                            После обработки система вернёт Вам файл с конспектом в .docx формате.
+                            Добавьте от 1 до 10 изображений в соседнее поле и нажмите кнопку "Загрузить файл".<br />
+                            После обработки система вернёт Вам файл с конспектом в .pdf формате.
                         </Text>
                     </Box>
                 </Box>
@@ -116,19 +174,29 @@ export default function FileUpload() {
                         <input
                             id="file-upload"
                             type="file"
+                            multiple
                             onChange={handleFileChange}
                             style={{ display: 'none' }}
                         />
                         <Icon as={FiUploadCloud} boxSize={16} color={colors.accent} mb={6} />
-                        {file ? (
-                            <Text color={colors.accent} fontWeight="semibold" isTruncated>
-                                {file.name}
-                            </Text>
+                        {files.length > 0 ? (
+                            <VStack spacing={1}>
+                                {files.map((f, i) => (
+                                    <HStack>
+                                        <Text key={i} color={colors.accent} fontWeight="semibold" isTruncated>
+                                            {f.name}
+                                        </Text>
+                                        <CloseButton size="sm" onClick={() => handleRemoveFile(i)} />
+                                    </HStack>
+                                ))}
+                            </VStack>
                         ) : (
                             <>
-                                <Text fontWeight="medium" fontSize="lg">Перетащи сюда файл</Text>
+                                <Text fontWeight="medium" fontSize="lg">
+                                    Перетащи сюда файлы
+                                </Text>
                                 <Text fontSize="sm" color="gray.600">
-                                    или кликни, чтобы выбрать
+                                    или кликни, чтобы выбрать (до 10)
                                 </Text>
                             </>
                         )}
@@ -143,11 +211,13 @@ export default function FileUpload() {
                         onClick={handleUpload}
                         py={6}
                         fontSize="lg"
+                        isLoading={isLoading}
+                        loadingText="Обработка..."
                     >
-                        Загрузить файл
+                        Загрузить файлы
                     </Button>
                 </Box>
             </Flex>
         </Box>
-    )
+    );
 }
